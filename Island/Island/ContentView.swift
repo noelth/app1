@@ -6,16 +6,9 @@ import AVFoundation
 import IOKit
 import IOKit.graphics
 
-@main
-struct Island: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-    }
-}
 
-struct ContentView: View {
+
+    struct ContentView: View {
     var body: some View {
         TabView {
             DynaKeysView()

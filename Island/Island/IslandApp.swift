@@ -1,10 +1,3 @@
-//
-//  IslandApp.swift
-//  Island
-//
-//  Created by Mad Hatter on 10/6/24.
-//
-
 import SwiftUI
 
 @main
