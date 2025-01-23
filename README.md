@@ -1,2 +1,2 @@
 # app1
-Text completion
+Dynamic Island
