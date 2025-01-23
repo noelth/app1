@@ -3,12 +3,8 @@
 import SwiftUI
 import AppKit
 import AVFoundation
-import IOKit
-import IOKit.graphics
 
-
-
-    struct ContentView: View {
+struct ContentView: View {
     var body: some View {
         TabView {
             DynaKeysView()
@@ -26,7 +22,6 @@ import IOKit.graphics
 // DynaKeys Feature
 struct DynaKeysView: View {
     @State private var volumeLevel: Float = getSystemVolume()
-    @State private var brightnessLevel: Float = getScreenBrightness()
     
     var body: some View {
         VStack {
@@ -41,26 +36,55 @@ struct DynaKeysView: View {
                 }
             ), in: 0...1)
             .padding()
-            .onChange(of: volumeLevel) { oldValue, newValue in setSystemVolume(level: newValue) }
-            
-            // Brightness Control Slider
-            Text("Brightness Control")
-                .font(.headline)
-            Slider(value: Binding(
-                get: { self.brightnessLevel },
+            .onAppear {
+                // Listen for volume change notifications using NotificationCenter
+                NotificationCenter.default.addObserver(forName: NSNotification.Name("VolumeDidChange"), object: nil, queue: .main) { _ in
+                    self.volumeLevel = getSystemVolume()
+                }
+                
+                // Set up property listener for real-time volume changes
+                let audioObjectID = AudioObjectID(kAudioObjectSystemObject)
+                var propertyAddress = AudioObjectPropertyAddress(
+                    mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                    mScope: kAudioDevicePropertyScopeOutput,
+                    mElement: kAudioObjectPropertyElementMain
+                )
+                AudioObjectAddPropertyListener(audioObjectID, &propertyAddress, volumeDidChangeCallback, nil)
+            }
+        }
+        .padding()
+    }
+}
                 set: { newValue in
-                    self.brightnessLevel = newValue
-                    setScreenBrightness(level: newValue) // Update screen brightness when slider changes
+                    self.volumeLevel = newValue
+                    setSystemVolume(level: newValue) // Update system volume when slider changes
                 }
             ), in: 0...1)
             .padding()
-            .onChange(of: brightnessLevel) { oldValue, newValue in setScreenBrightness(level: newValue) }
+            .onAppear {
+                // Listen for volume change notifications
+                let audioObjectID = AudioObjectID(kAudioObjectSystemObject)
+                var propertyAddress = AudioObjectPropertyAddress(
+                    mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                    mScope: kAudioDevicePropertyScopeOutput,
+                    mElement: kAudioObjectPropertyElementMain
+                )
+                AudioObjectAddPropertyListener(audioObjectID, &propertyAddress, volumeDidChangeCallback, nil)
+            }
         }
         .padding()
     }
 }
 
-// macOS specific functions to control volume and brightness
+// Callback function for volume changes
+func volumeDidChangeCallback(objectID: AudioObjectID, numberAddresses: UInt32, addresses: UnsafePointer<AudioObjectPropertyAddress>, clientData: UnsafeMutableRawPointer?) -> OSStatus {
+    DispatchQueue.main.async {
+        NotificationCenter.default.post(name: NSNotification.Name("VolumeDidChange"), object: nil)
+    }
+    return noErr
+}
+
+// macOS specific functions to control volume
 func getSystemVolume() -> Float {
     var defaultOutputDeviceID = AudioDeviceID(0)
     var propertyAddress = AudioObjectPropertyAddress(
@@ -149,37 +173,6 @@ func setSystemVolume(level: Float) {
     print("Setting volume level to: \(level)") // Debug output to confirm volume change
 }
 
-func getScreenBrightness() -> Float {
-    let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IODisplayConnect"))
-    guard service != 0 else {
-        print("Error getting display service")
-        return 0.5
-    }
-    var brightness: Float = 0.5
-    let result = IODisplayGetFloatParameter(service, 0, kIODisplayBrightnessKey as CFString, &brightness)
-    IOObjectRelease(service)
-    guard result == kIOReturnSuccess else {
-        print("Error getting screen brightness")
-        return 0.5
-    }
-    return brightness
-}
-
-func setScreenBrightness(level: Float) {
-    let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IODisplayConnect"))
-    guard service != 0 else {
-        print("Error getting display service")
-        return
-    }
-    let result = IODisplaySetFloatParameter(service, 0, kIODisplayBrightnessKey as CFString, level)
-    IOObjectRelease(service)
-    guard result == kIOReturnSuccess else {
-        print("Error setting screen brightness")
-        return
-    }
-    print("Setting brightness level to: \(level)") // Debug output to confirm brightness change
-}
-
 // DynaMusic Feature
 struct DynaMusicView: View {
     @State private var isPlaying = false
@@ -213,13 +206,16 @@ struct DynaMusicView: View {
     }
     
     func togglePlayback() {
-        // Handle playback logic using AVFoundation or MediaPlayer
-        print(isPlaying ? "Playing music" : "Pausing music") // Debug output to confirm playback state
+        let script = "tell application \"System Events\" to key code 16 using {command down, option down}"
+        let task = Process()
+        task.launchPath = "/usr/bin/osascript"
+        task.arguments = ["-e", script]
+        task.launch()
+        print(isPlaying ? "Playing media" : "Pausing media") // Debug output to confirm playback state
     }
     
     func updateNowPlayingInfo() {
-        // Update now playing information from system or streaming API
-        nowPlaying = "Current Track - Artist Name" // Placeholder for current track info
+        nowPlaying = "Media Control Active" // Placeholder for current track info
         print("Updated now playing info: \(nowPlaying)") // Debug output to confirm now playing info
     }
 }
